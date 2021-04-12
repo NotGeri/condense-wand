@@ -1,5 +1,6 @@
 # CondenseWand
-Made for a request on [bloom.host](https://bloom.host)  - Feel free to copy / modify / improve!
+> Use a special item to condense or delete pre-configured items from chests by shift-right-clicking.
+> Made for a request on [bloom.host](https://bloom.host)  - Feel free to copy / modify / improve!
 
 ### Commands & Permissions
 - `/condensewand` (`condensewand.give`) - Give a wand to yourself.
