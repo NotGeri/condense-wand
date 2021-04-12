@@ -1,0 +1,12 @@
+name: CondenseWand
+version: 1.0
+main: dev.geri.condensewand.CondenseWand
+api-version: 1.16
+prefix: CondenseWand
+authors: [Geri]
+description: A simple plugin for stuff. Yes.
+website: https://geri.dev/
+commands:
+  condensewand:
+    aliases: [cd, cw]
+    description: Give a wand to someone or reload the plugin!
