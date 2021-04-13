@@ -4,7 +4,6 @@ import org.bukkit.*;
 import org.bukkit.block.Chest;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
-import org.bukkit.command.TabExecutor;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
@@ -20,10 +19,12 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
-public final class CondenseWand extends JavaPlugin implements Listener, TabExecutor {
+public final class CondenseWand extends JavaPlugin implements Listener {
 
     private FileConfiguration config;
 
@@ -66,68 +67,99 @@ public final class CondenseWand extends JavaPlugin implements Listener, TabExecu
         Set<String> convert = config.getConfigurationSection("settings.convert").getKeys(false);
         List<String> delete = config.getStringList("settings.delete");
 
-        // Loop through the inventory's items
-        for (int i = 0; i < inventory.getSize(); i++) {
-            ItemStack item = inventory.getItem(i); // Store the current item in a variable
 
+        // get the item's totals and locations in advance
+        HashMap<String, List<Integer>> baseMaterialLocations = new HashMap<String, List<Integer>>(){
+            @Override
+            public List<Integer> get(Object key) {
+                if(! containsKey(key))
+                    return new ArrayList<Integer>();
+                return super.get(key);
+            }
+        };
+
+        HashMap<String, Integer> totals = new HashMap<String, Integer>() {
+            @Override
+            public Integer get(Object key) {
+                if(! containsKey(key))
+                    return 0;
+                return super.get(key);
+            }
+        };
+
+        for (int i = 0; i < inventory.getSize(); i++) {
+            ItemStack item = inventory.getItem(i);
+
+            // If the item doesn't exist (slot is empty), ignore
             if (item == null) {
                 continue;
-            } // If the item doesn't exist (slot is empty), ignore
-
-            // Check if the item is something that should be deleted
-            if (delete.contains(item.getType().name())) {
-
-                for (String configuredMaterial : delete) { // Loop through all the items that should be deleted and check if the current item is one
-                    if (item.getType().name().equalsIgnoreCase(configuredMaterial)) {
-                        inventory.remove(item); // If it is, remove it from the inventory
-                        playEffects(chest); // Summon the particles and play the sound
-                    }
-                }
-
             }
 
-            // Check if the item is something that should be converted
-            if (convert.contains(item.getType().name())) {
+            String itemName = item.getType().name();
 
+            // Check if the item is something that should be deleted
+            if (delete.contains(itemName)) {
+                inventory.remove(item); // If it is, remove it from the inventory
+                playEffects(chest); // Summon the particles and play the sound
+            }
+
+            if (convert.contains(itemName)) {
+                List<Integer> currentLocations = baseMaterialLocations.get(itemName);
+                currentLocations.add(i);
+                int currentTotal = totals.get(itemName);
+                
                 for (String configuredMaterial : convert) { // Loop through all the items that should be converted and check if the current item is one
-
                     if (item.getType().name().equalsIgnoreCase(configuredMaterial)) {
+                        baseMaterialLocations.put(configuredMaterial, currentLocations);
+                        totals.put(configuredMaterial, currentTotal + item.getAmount());
+                    }
+                }
+            }
+        }
 
-                        int have = item.getAmount(); // Store the amount of item in the chest
-                        int needed = config.getInt("settings.convert." + configuredMaterial + ".required"); // Get and store the amount of needed items from the config
-                        int total = have / needed; // Divide the two values
-                        int remainder = have % needed; // Get the remainder of the division
+        // loop through hashmap's keys
+            // delete base materials in each slot
+            // return items in optimised stacks
+        // this iterator() method is stolen from stackoverflow, not very pretty - could replace
+        Iterator it = baseMaterialLocations.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<String, List<Integer>> pair = (Map.Entry<String, List<Integer>>) it.next();
+            String material = pair.getKey();
 
-                        if (total >= 1) { // Check if the total is 1 or above
+            int have = totals.get(material);
+            int needed = config.getInt("settings.convert." + material + ".required"); // Get and store the amount of needed items from the config
+            int total = have / needed; // Divide the two values
+            int remainder = have % needed; // Get the remainder of the division
 
-                            // If so, create a new item which is the item we want to convert into
-                            ItemStack newItem = new ItemStack(Material.valueOf(config.getString("settings.convert." + configuredMaterial + ".to")));
-                            newItem.setAmount(total * config.getInt("settings.convert." + configuredMaterial + ".amount")); // Get how many of the new items there should be
+            if (total >= 1) {
+                ItemStack newItem = new ItemStack(Material.valueOf(config.getString("settings.convert." + material + ".to")));
+                newItem.setAmount(total * config.getInt("settings.convert." + material + ".amount")); // Get how many of the new items there should be
 
-                            // Set the new item instead of the old one
-                            inventory.setItem(i, newItem);
-                            playEffects(chest); // Summon the particles and play the sound
+                for (Integer loc : pair.getValue()) {
+                    inventory.clear(loc);
+                }
 
-                            // Check if there is any remainder left
-                            if (remainder > 0) {
-                                ItemStack remainderItem = new ItemStack(item.getType()); // If so, create a new item from the old item and set it as the remainder
-                                remainderItem.setAmount(remainder);
-                                HashMap<Integer, ItemStack> hashMap = inventory.addItem(remainderItem); // Add it to the chest, store the return value in a HashMap
+                inventory.addItem(newItem);
+                playEffects(chest); // Summon the particles and play the sound
 
-                                // If the HashMap isn't empty, the item couldn't be added, try to add it to the player's inventory instead
-                                if (!hashMap.isEmpty()) {
-                                    HashMap<Integer, ItemStack> hashmap2 = player.getInventory().addItem(remainderItem);
+                if (remainder > 0) {
+                    ItemStack remainderItem = new ItemStack(Material.valueOf(material)); // If so, create a new item from the old item and set it as the remainder
+                    remainderItem.setAmount(remainder);
+                    HashMap<Integer, ItemStack> hashMap = inventory.addItem(remainderItem); // Add it to the chest, store the return value in a HashMap
 
-                                    // If the new HashMap isn't empty, the item couldn't be added to the player's inventory, drop it on the ground at the player instead
-                                    if (!hashmap2.isEmpty()) {
-                                        player.getWorld().dropItem(player.getLocation().add(0, 1, 0), remainderItem);
-                                    }
-                                }
-                            }
+                    // If the HashMap isn't empty, the item couldn't be added, try to add it to the player's inventory instead
+                    if (!hashMap.isEmpty()) {
+                        HashMap<Integer, ItemStack> hashmap2 = player.getInventory().addItem(remainderItem);
+
+                        // If the new HashMap isn't empty, the item couldn't be added to the player's inventory, drop it on the ground at the player instead
+                        if (!hashmap2.isEmpty()) {
+                            player.getWorld().dropItem(player.getLocation().add(0, 1, 0), remainderItem);
                         }
                     }
                 }
             }
+            
+            it.remove(); // avoids a ConcurrentModificationException
         }
     }
 
