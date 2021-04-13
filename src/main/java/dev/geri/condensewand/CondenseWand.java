@@ -4,7 +4,6 @@ import org.bukkit.*;
 import org.bukkit.block.Chest;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
-import org.bukkit.command.TabExecutor;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
@@ -23,7 +22,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 
-public final class CondenseWand extends JavaPlugin implements Listener, TabExecutor {
+// TODO make it so it cleans up after it's done - rather than leaving 7 blocks in a slot, combine into as few stacks as possible
+
+public final class CondenseWand extends JavaPlugin implements Listener {
 
     private FileConfiguration config;
 
@@ -105,7 +106,8 @@ public final class CondenseWand extends JavaPlugin implements Listener, TabExecu
                             newItem.setAmount(total * config.getInt("settings.convert." + configuredMaterial + ".amount")); // Get how many of the new items there should be
 
                             // Set the new item instead of the old one
-                            inventory.setItem(i, newItem);
+                            inventory.clear(i);
+                            inventory.addItem(newItem);
                             playEffects(chest); // Summon the particles and play the sound
 
                             // Check if there is any remainder left
